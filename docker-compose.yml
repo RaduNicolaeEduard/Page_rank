@@ -1,0 +1,68 @@
+version: "2"
+
+networks:
+  elastic:
+    driver: bridge
+
+
+services:
+  es01:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.7
+    container_name: es01
+    environment:
+      - node.name=es01
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es01
+      - cluster.initial_master_nodes=es01
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
+      - "xpack.security.enabled=true"
+      - "xpack.security.authc.api_key.enabled=true"
+      - "ELASTIC_PASSWORD=CHANGETHIS"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - 9200:9200
+    expose:
+      - 9200
+    networks:
+      - elastic
+
+  ent-search:
+    image: docker.elastic.co/enterprise-search/enterprise-search:7.17.7
+    restart: unless-stopped
+    depends_on:
+      - "es01"
+    environment:
+      - "JAVA_OPTS=-Xms2g -Xmx2g"
+      - "ENT_SEARCH_DEFAULT_PASSWORD=CHANGETHIS"
+      - "elasticsearch.username=CHANGETHIS"
+      - "elasticsearch.password=changeme"
+      - "elasticsearch.host=http://es02:9200"
+      - "allow_es_settings_modification=true"
+      - "secret_management.encryption_keys=[CHANGETHIS]"
+      - "elasticsearch.startup_retry.interval=15"
+    ports:
+      - 3002:3002
+    networks:
+      - elastic
+
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.7
+    restart: unless-stopped
+    depends_on:
+      - "es01"
+      - "ent-search"
+    ports:
+      - 5601:5601
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://es02:9200","http://es01:9200","http://es03:9200"]'
+      ENTERPRISESEARCH_HOST: http://ent-search:3002
+      ELASTICSEARCH_USERNAME: CHANGETHIS
+      ELASTICSEARCH_PASSWORD: CHANGETHIS
+    networks:
+      - elastic
+      
